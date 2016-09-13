@@ -1,0 +1,110 @@
+buildscript {
+    repositories {
+        mavenCentral()
+        maven {
+            name = "forge"
+            url = "http://files.minecraftforge.net/maven"
+        }
+    }
+
+    dependencies {
+        classpath 'com.techshroom:Aversion:3.0.0'
+        classpath 'net.minecraftforge.gradle:ForgeGradle:2.2-SNAPSHOT'
+    }
+}
+plugins {
+    id "com.github.hierynomus.license" version "0.13.1"
+}
+apply plugin: 'net.minecraftforge.gradle.forge'
+apply plugin: 'aversion-util'
+
+defaultTasks 'clean', 'licenseFormat', 'build'
+
+util {
+    javaVersion = '1.8'
+}
+
+archivesBaseName = project.name.toLowerCase()
+version = "${project.version}-r${project.apiVersion.split("-")[0]}"
+
+minecraft {
+    version = "1.10.2-${project.forgeExtVersion}"
+    runDir = "run"
+    mappings "${project.mcpMappings}"
+    useDepAts = true
+}
+
+[tasks.deobfMcMCP, tasks.deobfMcSRG].each { it.failOnAtError = false }
+
+repositories {
+    mavenCentral()
+    maven {
+        name = 'weirdspongelocal'
+        url = 'file:///Users/kenzietogami/Documents/_sponge'
+    }
+    maven {
+        name = 'sponge'
+        url = 'http://repo.spongepowered.org/maven'
+    }
+    maven {
+        name = 'forge'
+        url = 'http://files.minecraftforge.net/maven'
+    }
+}
+
+dependencies {
+    compile "org.spongepowered:spongeapi:${project.apiVersion}"
+    compile "org.spongepowered:spongeforge:1.10.2-${project.forgeVersion}-${project.apiVersion.split("-")[0]}-${project.spongeVersion}"
+    // TEMPORARY ( https://github.com/SpongePowered/SpongeCommon/issues/934 )
+    compile 'it.unimi.dsi:fastutil:7.0.12'
+}
+
+configure([compileJava, compileTestJava]) {
+    options.compilerArgs += ['-Xlint:all', '-Xlint:-path']
+    options.deprecation = true
+    options.encoding = 'UTF-8'
+    options.incremental = true
+    options.fork = true
+}
+
+license {
+    ext {
+        name = project.name
+        organization = project.organization
+        url = project.url
+    }
+    header = rootProject.file('HEADER.txt')
+    ignoreFailures = false
+    strictCheck = true
+    include '**/*.java'
+    mapping {
+        java = 'SLASHSTAR_STYLE'
+    }
+}
+
+javadoc {
+    options.addStringOption('Xdoclint:none', '-quiet')
+}
+
+// tokens
+// no I will not use the minecraft { replace } stuff, I plan to switch to API when possible
+import org.apache.tools.ant.filters.ReplaceTokens
+
+task detokenizeSource(type: Copy) {
+    from 'src/main/java'
+    into 'build/detokenizedSource'
+    inputs.property 'version', project.version.toString()
+    filter(ReplaceTokens, tokens: [
+        'ID': project.id.toString(),
+        'NAME': project.name.toString(),
+        'VERSION': project.version.toString()
+    ])
+}
+
+compileJava.dependsOn(detokenizeSource)
+compileJava.source = fileTree(dir: 'build/detokenizedSource')
+
+// Compile tasks in utf8, for snowmen :)
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
+}
